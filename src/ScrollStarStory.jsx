@@ -11,6 +11,8 @@ export default function ScrollStarStory() {
   const canvasRef = useRef(null);
 
   const cardsLayerRef = useRef(null);
+  const introRef = useRef(null);
+  const copyRef = useRef(null);
   const cardARef = useRef(null);
   const cardBRef = useRef(null);
 
@@ -302,13 +304,20 @@ export default function ScrollStarStory() {
     const cardsLayer = cardsLayerRef.current;
     const cardA = cardARef.current;
     const cardB = cardBRef.current;
-    if (!cardsLayer || !cardA || !cardB) return;
+    const intro = introRef.current;
+    const copy = copyRef.current;
+    if (!cardsLayer || !cardA || !cardB || !intro || !copy) return;
 
     const cardsIn = range01(p, 0.74, 0.82);
     const cardsOut = range01(p, 0.94, 0.97);
     const cardsOpacity = clamp(cardsIn - cardsOut, 0, 1);
     cardsLayer.style.opacity = String(cardsOpacity);
     cardsLayer.style.transform = `translateY(${lerp(12, 0, cardsIn)}px)`;
+
+    const introOut = range01(p, 0.04, 0.12);
+    const introOpacity = 1 - introOut;
+    intro.style.opacity = String(introOpacity);
+    copy.style.opacity = String(introOpacity);
 
     const cardReveal = range01(p, 0.80, 0.86);
     cardA.style.opacity = String(cardReveal);
@@ -536,13 +545,28 @@ export default function ScrollStarStory() {
     const onScroll = () => {
       // lightweight; just update progress next frame
     };
+    const onWheel = (event) => {
+      if (!wrapRef.current) return;
+      const { wrapTop, scrollMax } = scrollRef.current;
+      const y = window.scrollY;
+      const minY = wrapTop;
+      const maxY = wrapTop + scrollMax;
+      if (y < minY - 2 || y > maxY + 2) return;
+
+      event.preventDefault();
+      const damp = 0.35;
+      const next = clamp(y + event.deltaY * damp, minY, maxY);
+      window.scrollTo({ top: next });
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", measure, { passive: true });
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", measure);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -603,14 +627,65 @@ export default function ScrollStarStory() {
           }}
         />
 
+        {/* Intro */}
+        <div
+          ref={introRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            zIndex: 5,
+            pointerEvents: "auto",
+            color: "#fff",
+            fontFamily:
+              "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+          }}
+        >
+          <div style={{ maxWidth: 720, padding: "0 20px", transform: "translateY(-60px)" }}>
+            <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, letterSpacing: "-0.01em" }}>
+              Gamify Your Goals
+            </div>
+            <div
+              style={{
+                margin: "14px auto 16px",
+                width: "min(360px, 70%)",
+                height: 1,
+                background: "rgba(255,255,255,0.65)",
+              }}
+            />
+            <div style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.8)" }}>
+              Moggily is the world’s first meritocratic dating app
+            </div>
+            <button
+              type="button"
+              style={{
+                marginTop: 18,
+                padding: "10px 18px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.35)",
+                background: "rgba(255,255,255,0.12)",
+                color: "#fff",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Join the Journey
+            </button>
+          </div>
+        </div>
+
         {/* Copy */}
         <div
+          ref={copyRef}
           style={{
             position: "absolute",
             left: "clamp(20px, 6vw, 72px)",
             top: "clamp(20px, 8vh, 90px)",
             maxWidth: 620,
-            zIndex: 5,
+            zIndex: 6,
             pointerEvents: "none",
             color: "rgba(255,255,255,.92)",
             fontFamily:
