@@ -261,10 +261,11 @@ export default function ScrollStarStory() {
 
   function applyStory(p) {
     // Segment boundaries
-    const A1 = 0.05;
-    const B0 = 0.05, B1 = 0.70;
-    const C0 = 0.70, C1 = 0.88;
-    const F0 = 0.94, F1 = 1.0;
+    const A1 = 0.02;
+    const B0 = 0.02, B1 = 0.26;
+    const C0 = 0.26, C1 = 0.60;
+    const D0 = 0.60, D1 = 0.8;
+    const F0 = 0.8, F1 = 1.0;
 
     let drift = 1, fall = 0, streak = 0, morphCards = 0, morphHeart = 0;
 
@@ -281,15 +282,16 @@ export default function ScrollStarStory() {
       fall = lerp(1.0, 0.35, t);
       streak = lerp(1.0, 0.3, t);
       morphCards = lerp(0.0, 1.0, t);
-    } else if (p < F0) {
+    } else if (p < D1) {
       drift = 0.18; fall = 0.08; streak = 0.10; morphCards = 1.0; morphHeart = 0.0;
     } else {
       const t = range01(p, F0, F1);
+      const tHeart = range01(p, 0.98, F1);
       drift = lerp(0.10, 0.0, t);
       fall = 0.0;
       streak = 0.10;
       morphCards = lerp(1.0, 0.0, t);
-      morphHeart = lerp(0.0, 1.0, t);
+      morphHeart = lerp(0.0, 1.0, tHeart);
     }
 
     const params = paramsRef.current;
@@ -312,8 +314,8 @@ export default function ScrollStarStory() {
     const waitlist = waitlistRef.current;
     if (!cardsLayer || !cardA || !cardB || !intro || !copy || !waitlist) return;
 
-    const cardsIn = range01(p, 0.74, 0.82);
-    const cardsOut = range01(p, 0.94, 0.97);
+    const cardsIn = range01(p, 0.50, 0.60);
+    const cardsOut = range01(p, 0.94, 0.98);
     const cardsOpacity = clamp(cardsIn - cardsOut, 0, 1);
     cardsLayer.style.opacity = String(cardsOpacity);
     cardsLayer.style.transform = `translateY(${lerp(12, 0, cardsIn)}px)`;
@@ -328,14 +330,14 @@ export default function ScrollStarStory() {
     waitlist.style.transform = `translateY(${lerp(-80, 0, waitlistIn)}px)`;
     waitlist.style.pointerEvents = waitlistIn > 0.2 ? "auto" : "none";
 
-    const cardReveal = range01(p, 0.80, 0.86);
+    const cardReveal = range01(p, 0.50, 0.60);
     cardA.style.opacity = String(cardReveal);
     cardB.style.opacity = String(cardReveal);
 
     const voting = p >= 0.80 && p <= 0.95 && cardReveal > 0.6;
     cardsLayer.style.pointerEvents = voting ? "auto" : "none";
 
-    // Keep cards overlapped until stars finish blinking out
+    // Keep cards overlapped until stars disperse
     let ax = 0, ar = 0;
     let bx = 0, br = 0;
 
@@ -377,71 +379,35 @@ export default function ScrollStarStory() {
     const params = paramsRef.current;
     const stars = starsRef.current;
 
-    // Draw trail as stacked circles along a stored curved path (thick near head)
-    function drawTrail(s, vis) {
-      const strength = Math.max(params.streak, params.fall);
-      if (strength <= 0.001 || vis <= 0.001 || params.scrollDir < 0) return;
-
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      const tail = s.tail;
-      const n = Math.max(2, s.tailLen || tail.length);
-
-      for (let i = 0; i < n; i++) {
-        const p = tail[tail.length - n + i];
-        const t = i / (n - 1); // 0 old -> 1 head
-        const k = t * t; // emphasize head
-        const radius = (0.20 + strength) * (0.75 + s.r * 0.9) * (0.22 + 1.5 * k);
-        const alpha = (0.02 + 0.18 * strength) * s.a * k * vis;
-
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
     const p = params.progress;
-    const blinkOutT = range01(p, 0.74, 0.82);
-    const blinkInT = range01(p, 0.94, 0.97);
-    const blinkWindow = 0.10;
-    const freezeRect = blinkInT > 0 && blinkInT < 1;
+    const disperseT = smooth01(range01(p, 0.82, 0.98));
     const cardCx = W * 0.5;
     const cardCy = H * 0.5;
     const scrollUp = params.scrollDir < -0.0004;
 
     for (const s of stars) {
-      if (!freezeRect) {
-        // Curved falling motion
-        const wind = Math.sin(now * 1.1 + s.seed) * (0.06 + 0.25 * params.streak);
-        const gravity = 0.10 + 1.25 * params.fall + 1.8 * params.streak;
+      // Curved falling motion
+      const wind = Math.sin(now * 1.1 + s.seed) * (0.06 + 0.25 * params.streak);
+      const gravity = 0.10 + 1.25 * params.fall + 1.8 * params.streak;
 
-        if (s.hero && p < 0.22) {
-          // Keep hero stars on-screen at the start
-          s.vx *= 0.6;
-          s.vy *= 0.6;
-          s.x = lerp(s.x, s.ix, 0.2);
-          s.y = lerp(s.y, s.iy, 0.2);
-          s.x += Math.sin(now * 0.7 + s.seed) * 0.06;
-          s.y += Math.cos(now * 0.7 + s.seed) * 0.04;
-        } else {
-          s.vx += wind * 0.02;
-          s.vy += gravity * 0.008;
-
-          s.vx *= 0.995;
-          s.vy *= 0.999;
-
-          const speed = (0.45 + params.drift * 0.9 + params.streak * 3.8 + params.fall * 2.0) * s.speed;
-          s.x += s.vx * speed;
-          s.y += s.vy * speed;
-        }
+      if (s.hero && p < 0.22) {
+        // Keep hero stars on-screen at the start
+        s.vx *= 0.6;
+        s.vy *= 0.6;
+        s.x = lerp(s.x, s.ix, 0.2);
+        s.y = lerp(s.y, s.iy, 0.2);
+        s.x += Math.sin(now * 0.7 + s.seed) * 0.06;
+        s.y += Math.cos(now * 0.7 + s.seed) * 0.04;
       } else {
-        // Hold stars in the card outline until all have blinked in
-        s.vx *= 0.85;
-        s.vy *= 0.85;
-        s.x += (s.tx - s.x) * 0.35;
-        s.y += (s.ty - s.y) * 0.35;
+        s.vx += wind * 0.02;
+        s.vy += gravity * 0.008;
+
+        s.vx *= 0.995;
+        s.vy *= 0.999;
+
+        const speed = (0.45 + params.drift * 0.9 + params.streak * 3.8 + params.fall * 2.0) * s.speed;
+        s.x += s.vx * speed;
+        s.y += s.vy * speed;
       }
 
       // wrap
@@ -465,6 +431,17 @@ export default function ScrollStarStory() {
         const k = 0.05 + params.morphCards * 0.26;
         s.x += (s.tx - s.x) * k;
         s.y += (s.ty - s.y) * k;
+      }
+
+      // disperse while cards split, then recombine
+      if (disperseT > 0) {
+        const dx = s.x - cardCx;
+        const dy = s.y - cardCy;
+        const dist = Math.hypot(dx, dy) || 1;
+        const kick = 0.015 + 0.12 * disperseT;
+        const jitter = Math.sin(now * 2.6 + s.seed) * (0.02 + 0.12 * disperseT);
+        s.vx += (dx / dist) * kick + jitter;
+        s.vy += (dy / dist) * kick - jitter * 0.6;
       }
 
       // disperse when scrolling up from the card shape
@@ -494,14 +471,8 @@ export default function ScrollStarStory() {
       s.tail.shift();
       s.tail.push({ x: s.x, y: s.y });
 
-      const order = s.seed - Math.floor(s.seed);
-      const out = clamp((blinkOutT - order) / blinkWindow, 0, 1);
-      const inn = clamp((blinkInT - order) / blinkWindow, 0, 1);
-      let vis = clamp(1 - out + inn, 0, 1);
       const twinkle = 0.75 + 0.35 * Math.sin(now * (1.2 + s.seed * 0.015) + s.seed * 12.3);
-      vis *= twinkle;
-
-      drawTrail(s, vis);
+      const vis = twinkle;
 
       // star head
       if (vis > 0.001) {
@@ -593,7 +564,7 @@ export default function ScrollStarStory() {
       <div
         ref={wrapRef}
         style={{
-          height: "800vh",
+          height: "5000vh",
           position: "relative",
           background: "#000",
         }}
@@ -613,18 +584,34 @@ export default function ScrollStarStory() {
               "linear-gradient(180deg, #05060a, #0a0f1d)",
           }}
         >
-        {/* Canvas */}
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            display: "block",
-            zIndex: 1,
-          }}
-        />
+          {/* Clouds background */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 0,
+              backgroundSize: "cover",
+              backgroundPosition: "center top",
+              backgroundRepeat: "no-repeat",
+              opacity: 0.9,
+              maskImage:
+                "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)",
+            }}
+          />
+          {/* Canvas */}
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              display: "block",
+              zIndex: 1,
+            }}
+          />
 
         {/* Grain overlay (fixes banding “lines”) */}
         <div
@@ -654,19 +641,41 @@ export default function ScrollStarStory() {
             pointerEvents: "auto",
             color: "#fff",
             fontFamily:
-              "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+              "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
           }}
         >
           <div style={{ maxWidth: 720, padding: "0 20px", transform: "translateY(-60px)" }}>
             <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, letterSpacing: "-0.01em" }}>
-              Gamify Your Goals
+              Gam
+              <span style={{ position: "relative", display: "inline-block" }}>
+                i
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "0.17em",
+                    transform: "translateX(-42%)",
+                    width: "0.18em",
+                    height: "0.18em",
+                    borderRadius: "50%",
+                    background: "#fff",
+                    boxShadow:
+                      "0 0 10px rgba(255,255,255,0.9), 0 0 22px rgba(160,200,255,0.7)",
+                  }}
+                />
+              </span>
+              fy Your Goals
             </div>
             <div
               style={{
-                margin: "14px auto 16px",
-                width: "min(360px, 70%)",
+                margin: "30px auto 40px",
+                  width: "min(140px, 60%)",
                 height: 1,
-                background: "rgba(255,255,255,0.65)",
+                  background:
+                    "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 50%, rgba(255,255,255,0) 100%)",
+                  boxShadow:
+                    "0 0 10px rgba(255,255,255,0.9), 0 0 28px rgba(255,255,255,0.8)",
+                borderRadius: 999,
               }}
             />
             <div style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.8)" }}>
@@ -678,11 +687,11 @@ export default function ScrollStarStory() {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
               }}
               style={{
-                marginTop: 18,
-                padding: "10px 18px",
-                borderRadius: 999,
+                marginTop: 60,
+                padding: "16px 20px",
+                borderRadius: 12,
                 border: "1px solid rgba(255,255,255,0.35)",
-                background: "rgba(255,255,255,0.12)",
+                background: "rgba(0, 0, 0, 0.12)",
                 color: "#fff",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -705,7 +714,7 @@ export default function ScrollStarStory() {
             pointerEvents: "none",
             color: "rgba(255,255,255,.92)",
             fontFamily:
-              "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+              "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 100 }}>
@@ -758,7 +767,7 @@ export default function ScrollStarStory() {
             pointerEvents: "none",
             color: "#fff",
             fontFamily:
-              "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+              "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
           }}
         >
           <form
@@ -849,7 +858,7 @@ export default function ScrollStarStory() {
           fontSize: 10,
           letterSpacing: "0.02em",
           fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+            "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
         }}
       >
         Moggily · Built for the Grinders, Romantics, and Aura Farmers.
