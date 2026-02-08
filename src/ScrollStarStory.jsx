@@ -25,6 +25,8 @@ export default function ScrollStarStory() {
   const voteCursorRef = useRef(null);
   const startTimeRef = useRef(0);
   const hasVotedThisSessionRef = useRef(false);
+  const uiScaleRef = useRef(1);
+  const isSmallRef = useRef(false);
 
   // --- Config ---
   const config = useMemo(
@@ -242,6 +244,9 @@ export default function ScrollStarStory() {
     const W = Math.max(1, rect.width);
     const H = Math.max(1, rect.height);
     const DPR = Math.min(window.devicePixelRatio || 1, config.DPR_CAP);
+    const isSmall = Math.min(W, H) < 700;
+    isSmallRef.current = isSmall;
+    uiScaleRef.current = isSmall ? 0.85 : 1;
 
     dimsRef.current = { W, H, DPR };
 
@@ -351,20 +356,29 @@ export default function ScrollStarStory() {
     const cardsOut = range01(p, 0.94, 0.98);
     const cardsOpacity = clamp(cardsIn - cardsOut, 0, 1);
     cardsLayer.style.opacity = String(cardsOpacity);
-    cardsLayer.style.transform = `translateY(${lerp(12, 0, cardsIn)}px)`;
+    const uiScale = uiScaleRef.current || 1;
+    cardsLayer.style.transform = `translateY(${lerp(12, 0, cardsIn)}px) scale(${uiScale})`;
+    cardsLayer.style.transformOrigin = "center";
     const cursorIn = range01(p, 0.44, 0.52);
     const cursorOut = range01(p, 0.94, 0.98);
     const cursorVis = clamp(cursorIn - cursorOut, 0, 1);
     const loopPhase = Math.min(cursorIn / 0.7, 1) * Math.PI * 2;
-    const loopAmp = lerp(90, 0, cursorIn);
-    const cursorX = lerp(620, -210, cursorIn) + Math.cos(loopPhase) * loopAmp;
-    const cursorY = lerp(-350, 10, cursorIn) + Math.sin(loopPhase) * loopAmp;
+    const isSmall = isSmallRef.current;
+    const loopAmp = lerp(isSmall ? 70 : 90, 0, cursorIn);
+    const cursorStartX = isSmall ? 480 : 620;
+    const cursorStartY = isSmall ? -300 : -350;
+    const cursorTargetX = isSmall ? -160 : -210;
+    const cursorTargetY = isSmall ? 20 : 10;
+    const cursorX = lerp(cursorStartX, cursorTargetX, cursorIn) + Math.cos(loopPhase) * loopAmp;
+    const cursorY = lerp(cursorStartY, cursorTargetY, cursorIn) + Math.sin(loopPhase) * loopAmp;
     voteCursor.style.setProperty("--vote-cursor-x", `${cursorX}px`);
     voteCursor.style.setProperty("--vote-cursor-y", `${cursorY}px`);
     voteCursor.style.setProperty("--vote-cursor-scale", String(lerp(0.85, 1, cursorIn)));
     voteCursor.style.setProperty("--vote-cursor-t", String(cursorIn));
     const voteOpacity = hasVotedThisSessionRef.current ? 0 : cursorVis;
     voteCursor.style.opacity = String(voteOpacity);
+    voteCursor.style.transform = `scale(${uiScale})`;
+    voteCursor.style.transformOrigin = "center";
 
     const introOut = range01(p, 0.04, 0.12);
     const introOpacity = 1 - introOut;
@@ -1069,21 +1083,26 @@ export default function ScrollStarStory() {
         </div>
 
         </div>
+
+        <footer
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: "10px 10px 0px",
+            textAlign: "center",
+            color: "rgba(255,255,255,0.7)",
+            background: "#000",
+            fontSize: 10,
+            letterSpacing: "0.02em",
+            fontFamily:
+              "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
+          }}
+        >
+          Moggily · Built for the Grinders, Romantics, and Aura Farmers.
+        </footer>
       </div>
-      <footer
-        style={{
-          padding: "10px 10px 0px",
-          textAlign: "center",
-          color: "rgba(255,255,255,0.7)",
-          background: "#000",
-          fontSize: 10,
-          letterSpacing: "0.02em",
-          fontFamily:
-            "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
-        }}
-      >
-        Moggily · Built for the Grinders, Romantics, and Aura Farmers.
-      </footer>
     </>
   );
 }
