@@ -10,7 +10,7 @@ const BATTLES = {
 };
 
 const NEXT_BATTLE_DELAY = 2000;
-const imageUrl = (fileName) => `/images/${fileName}`;
+const imageUrl = (fileName) => `${import.meta.env.BASE_URL}images/${fileName}`;
 
 function preloadImage(url) {
   return new Promise((resolve) => {
