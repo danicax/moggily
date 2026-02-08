@@ -260,7 +260,7 @@ export default function ScrollStarStory() {
     // Segment boundaries
     const A1 = 0.05;
     const B0 = 0.05, B1 = 0.70;
-    const C0 = 0.70, C1 = 0.82;
+    const C0 = 0.70, C1 = 0.88;
     const F0 = 0.94, F1 = 1.0;
 
     let drift = 1, fall = 0, streak = 0, morphCards = 0, morphHeart = 0;
