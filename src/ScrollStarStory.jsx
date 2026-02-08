@@ -1,11 +1,13 @@
 // ScrollStarStory.jsx
 // Paste into a React project (Vite/CRA/Next). If Next.js App Router, add "use client" at the top.
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import BattleArena from "./components/BattleArena";
 import "./voting.css";
 
 export default function ScrollStarStory() {
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistMessage, setWaitlistMessage] = useState("");
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
   const canvasRef = useRef(null);
@@ -15,6 +17,7 @@ export default function ScrollStarStory() {
   const copyRef = useRef(null);
   const cardARef = useRef(null);
   const cardBRef = useRef(null);
+  const waitlistRef = useRef(null);
 
   // --- Config ---
   const config = useMemo(
@@ -306,7 +309,8 @@ export default function ScrollStarStory() {
     const cardB = cardBRef.current;
     const intro = introRef.current;
     const copy = copyRef.current;
-    if (!cardsLayer || !cardA || !cardB || !intro || !copy) return;
+    const waitlist = waitlistRef.current;
+    if (!cardsLayer || !cardA || !cardB || !intro || !copy || !waitlist) return;
 
     const cardsIn = range01(p, 0.74, 0.82);
     const cardsOut = range01(p, 0.94, 0.97);
@@ -318,6 +322,11 @@ export default function ScrollStarStory() {
     const introOpacity = 1 - introOut;
     intro.style.opacity = String(introOpacity);
     copy.style.opacity = String(introOpacity);
+
+    const waitlistIn = range01(p, 0.99, 1);
+    waitlist.style.opacity = String(waitlistIn);
+    waitlist.style.transform = `translateY(${lerp(-80, 0, waitlistIn)}px)`;
+    waitlist.style.pointerEvents = waitlistIn > 0.2 ? "auto" : "none";
 
     const cardReveal = range01(p, 0.80, 0.86);
     cardA.style.opacity = String(cardReveal);
@@ -552,6 +561,9 @@ export default function ScrollStarStory() {
       const minY = wrapTop;
       const maxY = wrapTop + scrollMax;
       if (y < minY - 2 || y > maxY + 2) return;
+      if ((y <= minY + 1 && event.deltaY < 0) || (y >= maxY - 1 && event.deltaY > 0)) {
+        return;
+      }
 
       event.preventDefault();
       const damp = 0.35;
@@ -577,29 +589,30 @@ export default function ScrollStarStory() {
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E";
 
   return (
-    <div
-      ref={wrapRef}
-      style={{
-        height: "800vh",
-        position: "relative",
-        background: "#000",
-      }}
-    >
+    <>
       <div
-        ref={stageRef}
+        ref={wrapRef}
         style={{
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-          width: "100vw",
-          overflow: "hidden",
-          transform: "translateZ(0)",
-          background:
-            "radial-gradient(1200px 800px at 50% 10%, rgba(130,170,255,.10), transparent 60%)," +
-            "radial-gradient(900px 600px at 20% 20%, rgba(255,120,200,.08), transparent 55%)," +
-            "linear-gradient(180deg, #05060a, #0a0f1d)",
+          height: "800vh",
+          position: "relative",
+          background: "#000",
         }}
       >
+        <div
+          ref={stageRef}
+          style={{
+            position: "sticky",
+            top: 0,
+            height: "100vh",
+            width: "100vw",
+            overflow: "hidden",
+            transform: "translateZ(0)",
+            background:
+              "radial-gradient(1200px 800px at 50% 10%, rgba(130,170,255,.10), transparent 60%)," +
+              "radial-gradient(900px 600px at 20% 20%, rgba(255,120,200,.08), transparent 55%)," +
+              "linear-gradient(180deg, #05060a, #0a0f1d)",
+          }}
+        >
         {/* Canvas */}
         <canvas
           ref={canvasRef}
@@ -661,6 +674,9 @@ export default function ScrollStarStory() {
             </div>
             <button
               type="button"
+              onClick={() => {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+              }}
               style={{
                 marginTop: 18,
                 padding: "10px 18px",
@@ -723,8 +739,122 @@ export default function ScrollStarStory() {
           </div>
         </div>
 
+        {/* Waitlist */}
+        <div
+          ref={waitlistRef}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "min(calc(10vh + 0px), calc(100vh - 220px))",
+            bottom: "auto",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            textAlign: "center",
+            zIndex: 7,
+            opacity: 0,
+            transform: "translateY(12px)",
+            pointerEvents: "none",
+            color: "#fff",
+            fontFamily:
+              "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+          }}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              setWaitlistEmail("");
+              setWaitlistMessage("You're in. We'll email when it's your turn.");
+            }}
+            style={{
+              width: "min(680px, 92vw)",
+              background: "rgba(10,12,18,0.55)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: 18,
+              padding: "12px 16px 12px",
+              minHeight: 96,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+            }}
+          >
+            {waitlistMessage ? null : (
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>
+                Join the waitlist
+              </div>
+            )}
+            {waitlistMessage ? null : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Your email…"
+                  value={waitlistEmail}
+                  onChange={(event) => setWaitlistEmail(event.target.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: 280,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.28)",
+                    background: "rgba(255,255,255,0.14)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Join
+                </button>
+              </div>
+            )}
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: "rgba(255,255,255,0.7)",
+                lineHeight: 1.4,
+                textAlign: "center",
+              }}
+            >
+              {waitlistMessage ||
+                "By joining the waitlist, you agree to receive early access updates. No spam. Unsubscribe anytime."}
+            </div>
+          </form>
+        </div>
+
+        </div>
       </div>
-    </div>
+      <footer
+        style={{
+          padding: "10px 10px 0px",
+          textAlign: "center",
+          color: "rgba(255,255,255,0.7)",
+          background: "#000",
+          fontSize: 10,
+          letterSpacing: "0.02em",
+          fontFamily:
+            "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+        }}
+      >
+        Moggily · Built for the Grinders, Romantics, and Aura Farmers.
+      </footer>
+    </>
   );
 }
 
