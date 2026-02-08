@@ -637,6 +637,8 @@ export default function ScrollStarStory() {
   const introLetterDelay = 0.05;
   const introLineDelay = introLetters.length * introLetterDelay + 0.15;
   const introAnimCss = `
+    @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
+
     @keyframes introLetterPop {
       0% { opacity: 0; transform: translateY(14px) scale(0.96); }
       60% { opacity: 1; transform: translateY(-4px) scale(1.02); }
@@ -686,6 +688,8 @@ export default function ScrollStarStory() {
           height: "2000vh",
           position: "relative",
           background: "#000",
+          fontFamily:
+            "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
         }}
       >
         <div
@@ -829,7 +833,7 @@ export default function ScrollStarStory() {
             pointerEvents: "auto",
             color: "#fff",
             fontFamily:
-              "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
+              "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
           }}
         >
           <div style={{ maxWidth: 720, padding: "0 20px", transform: "translateY(-60px)" }}>
@@ -906,7 +910,8 @@ export default function ScrollStarStory() {
                 border: "1px solid rgba(255,255,255,0.35)",
                 background: "rgba(0, 0, 0, 0.12)",
                 color: "#fff",
-                fontWeight: 600,
+                fontSize: "clamp(14px, 1.6vw, 18px)",
+                fontWeight: 400,
                 cursor: "pointer",
                 animationDelay: `${introLineDelay + 0.3}s`,
               }}
@@ -928,7 +933,7 @@ export default function ScrollStarStory() {
             pointerEvents: "none",
             color: "rgba(255,255,255,.92)",
             fontFamily:
-              "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
+              "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
             animationDelay: `${introLineDelay + 0.55}s`,
           }}
           className="intro-nav-drop"
@@ -1074,7 +1079,7 @@ export default function ScrollStarStory() {
           fontSize: 10,
           letterSpacing: "0.02em",
           fontFamily:
-            "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
+            "\"Rubik\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
         }}
       >
         Moggily · Built for the Grinders, Romantics, and Aura Farmers.
