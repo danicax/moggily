@@ -167,9 +167,10 @@ export default function ScrollStarStory() {
     const stars = starsRef.current;
     if (!stars.length) return;
 
-    const cardW = Math.min(380, W * 0.40);
-    const cardH = Math.min(500, H * 0.60);
-    const radius = 24;
+    const starScale = isSmallRef.current ? (uiScaleRef.current || 1) * 0.9 : 1;
+    const cardW = Math.min(380, W * 0.40) * starScale;
+    const cardH = Math.min(500, H * 0.60) * starScale;
+    const radius = 24 * starScale;
 
     const outlineThickness = Math.max(2, Math.min(cardW, cardH) * 0.02);
     const outlinePad = Math.max(16, Math.min(cardW, cardH) * 0.08);
@@ -199,7 +200,7 @@ export default function ScrollStarStory() {
       rightCount,
       outlineThickness
     );
-    const vsRadius = Math.min(48, Math.min(W, H) * 0.06);
+    const vsRadius = Math.min(48, Math.min(W, H) * 0.06) * starScale;
     const vsTargets = sampleCircleOutlinePoints(W * 0.5, H * 0.5, vsRadius, vsCount, 2.5);
     const s = Math.min(W, H) * 0.017;
     const heartTargets = sampleHeartPoints(W * 0.5, H * 0.56, s, stars.length);
@@ -466,7 +467,8 @@ export default function ScrollStarStory() {
     const cardCy = H * 0.5;
     const scrollUp = params.scrollDir < -0.0004;
 
-    for (const s of stars) {
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
       // Curved falling motion
       const wind = Math.sin(now * 1.1 + s.seed) * (0.06 + 0.25 * params.streak);
       const gravity = 0.10 + 1.25 * params.fall + 1.8 * params.streak;
@@ -546,6 +548,18 @@ export default function ScrollStarStory() {
         const k = 0.04 + params.morphHeart * 0.30;
         s.x += (s.hx - s.x) * k;
         s.y += (s.hy - s.y) * k;
+      }
+
+      // Mobile battle mode: orbit around the screen while battling
+      if (isSmallRef.current && params.morphCards > 0.7) {
+        const orbitR = Math.min(W, H) * 0.36;
+        const baseAngle = now * 0.6 + i * 0.7;
+        const ox = W * 0.5 + Math.cos(baseAngle) * orbitR;
+        const oy = H * 0.5 + Math.sin(baseAngle) * orbitR;
+        s.x = lerp(s.x, ox, 0.12);
+        s.y = lerp(s.y, oy, 0.12);
+        s.vx = 0;
+        s.vy = 0;
       }
 
       // update tail AFTER moving
