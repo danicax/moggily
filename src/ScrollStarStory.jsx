@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import BattleArena from "./components/BattleArena";
+import coupleImage from "./assets/couple.png";
 import "./voting.css";
 
 export default function ScrollStarStory() {
@@ -11,6 +12,8 @@ export default function ScrollStarStory() {
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
   const canvasRef = useRef(null);
+  const glowRef = useRef(null);
+  const heartGlowRef = useRef(null);
 
   const cardsLayerRef = useRef(null);
   const introRef = useRef(null);
@@ -18,6 +21,10 @@ export default function ScrollStarStory() {
   const cardARef = useRef(null);
   const cardBRef = useRef(null);
   const waitlistRef = useRef(null);
+  const coupleRef = useRef(null);
+  const voteCursorRef = useRef(null);
+  const startTimeRef = useRef(0);
+  const hasVotedThisSessionRef = useRef(false);
 
   // --- Config ---
   const config = useMemo(
@@ -123,11 +130,11 @@ export default function ScrollStarStory() {
     return pts;
   }
 
-  function initStars(count) {
+  function initStars(count, isSmall) {
     const { W, H } = dimsRef.current;
     const stars = [];
     for (let i = 0; i < count; i++) {
-      const isHero = i < 2;
+      const isHero = !isSmall && i < 2;
       const x = isHero ? (i === 0 ? W * 0.22 : W * 0.78) : rand(0, W);
       const y = isHero ? (i === 0 ? H * 0.78 : H * 0.22) : rand(0, H);
       stars.push({
@@ -231,6 +238,7 @@ export default function ScrollStarStory() {
     if (!stage || !canvas || !wrap) return;
 
     const rect = stage.getBoundingClientRect();
+    const prevDims = dimsRef.current;
     const W = Math.max(1, rect.width);
     const H = Math.max(1, rect.height);
     const DPR = Math.min(window.devicePixelRatio || 1, config.DPR_CAP);
@@ -249,6 +257,27 @@ export default function ScrollStarStory() {
 
     scrollRef.current = { wrapTop, scrollMax };
 
+    // Stabilize stars on resize to avoid flashing tails/teleports
+    if (prevDims.W !== W || prevDims.H !== H) {
+      const stars = starsRef.current;
+      const sx = prevDims.W ? W / prevDims.W : 1;
+      const sy = prevDims.H ? H / prevDims.H : 1;
+      for (const s of stars) {
+        s.x = clamp(s.x * sx, -20, W + 20);
+        s.y = clamp(s.y * sy, -20, H + 20);
+        s.ix = clamp(s.ix * sx, -20, W + 20);
+        s.iy = clamp(s.iy * sy, -20, H + 20);
+        s.tx = clamp(s.tx * sx, -20, W + 20);
+        s.ty = clamp(s.ty * sy, -20, H + 20);
+        s.hx = clamp(s.hx * sx, -20, W + 20);
+        s.hy = clamp(s.hy * sy, -20, H + 20);
+        s.tail = s.tail.map((pt) => ({
+          x: clamp(pt.x * sx, -20, W + 20),
+          y: clamp(pt.y * sy, -20, H + 20),
+        }));
+      }
+    }
+
     // Rebuild targets because W/H changed
     rebuildTargets();
   }
@@ -259,7 +288,7 @@ export default function ScrollStarStory() {
     return clamp((y - wrapTop) / scrollMax, 0, 1);
   }
 
-  function applyStory(p) {
+  function applyStory(p, timeMs) {
     // Segment boundaries
     const A1 = 0.02;
     const B0 = 0.02, B1 = 0.26;
@@ -307,34 +336,72 @@ export default function ScrollStarStory() {
 
     // DOM UI updates (no React state; direct style for smoothness)
     const cardsLayer = cardsLayerRef.current;
+    const glow = glowRef.current;
+    const heartGlow = heartGlowRef.current;
     const cardA = cardARef.current;
     const cardB = cardBRef.current;
     const intro = introRef.current;
     const copy = copyRef.current;
     const waitlist = waitlistRef.current;
-    if (!cardsLayer || !cardA || !cardB || !intro || !copy || !waitlist) return;
+    const couple = coupleRef.current;
+    const voteCursor = voteCursorRef.current;
+    if (!cardsLayer || !cardA || !cardB || !intro || !copy || !waitlist || !couple || !voteCursor) return;
 
     const cardsIn = range01(p, 0.50, 0.60);
     const cardsOut = range01(p, 0.94, 0.98);
     const cardsOpacity = clamp(cardsIn - cardsOut, 0, 1);
     cardsLayer.style.opacity = String(cardsOpacity);
     cardsLayer.style.transform = `translateY(${lerp(12, 0, cardsIn)}px)`;
+    const cursorIn = range01(p, 0.44, 0.52);
+    const cursorOut = range01(p, 0.94, 0.98);
+    const cursorVis = clamp(cursorIn - cursorOut, 0, 1);
+    const loopPhase = Math.min(cursorIn / 0.7, 1) * Math.PI * 2;
+    const loopAmp = lerp(90, 0, cursorIn);
+    const cursorX = lerp(620, -210, cursorIn) + Math.cos(loopPhase) * loopAmp;
+    const cursorY = lerp(-350, 10, cursorIn) + Math.sin(loopPhase) * loopAmp;
+    voteCursor.style.setProperty("--vote-cursor-x", `${cursorX}px`);
+    voteCursor.style.setProperty("--vote-cursor-y", `${cursorY}px`);
+    voteCursor.style.setProperty("--vote-cursor-scale", String(lerp(0.85, 1, cursorIn)));
+    voteCursor.style.setProperty("--vote-cursor-t", String(cursorIn));
+    const voteOpacity = hasVotedThisSessionRef.current ? 0 : cursorVis;
+    voteCursor.style.opacity = String(voteOpacity);
 
     const introOut = range01(p, 0.04, 0.12);
     const introOpacity = 1 - introOut;
     intro.style.opacity = String(introOpacity);
     copy.style.opacity = String(introOpacity);
 
+    const introStart = startTimeRef.current || timeMs || 0;
+    const introElapsed = Math.max(0, (timeMs || 0) - introStart);
+    const coupleIntroIn = smooth01(clamp((introElapsed - 2200) / 650, 0, 1));
+    const coupleFade = range01(p, 0.02, 0.12);
+    couple.style.opacity = String(coupleIntroIn * (1 - coupleFade));
+    couple.style.transform = `translate(0, ${lerp(0, 16, coupleFade)}px)`;
+
     const waitlistIn = range01(p, 0.99, 1);
     waitlist.style.opacity = String(waitlistIn);
     waitlist.style.transform = `translateY(${lerp(-80, 0, waitlistIn)}px)`;
     waitlist.style.pointerEvents = waitlistIn > 0.2 ? "auto" : "none";
 
+    if (glow) {
+      const glowIn = range01(p, 0.10, 0.85);
+      const glowOut = range01(p, 0.95, 1.0);
+      const glowOpacity = clamp(glowIn - glowOut, 0, 1);
+      glow.style.opacity = String(0.55 * glowOpacity);
+      glow.style.transform = `translateY(${lerp(40, 0, glowIn)}px) scale(${lerp(0.9, 1.05, glowIn)})`;
+    }
+
+    if (heartGlow) {
+      const heartIn = smooth01(range01(p, 0.98, 1.0));
+      heartGlow.style.opacity = String(0.85 * heartIn);
+      heartGlow.style.transform = `translateY(${lerp(30, 0, heartIn)}px) scale(${lerp(0.9, 1.15, heartIn)})`;
+    }
+
     const cardReveal = range01(p, 0.50, 0.60);
     cardA.style.opacity = String(cardReveal);
     cardB.style.opacity = String(cardReveal);
 
-    const voting = p >= 0.80 && p <= 0.95 && cardReveal > 0.6;
+    const voting = p >= 0.45 && p <= 0.95 && cardReveal > 0.4;
     cardsLayer.style.pointerEvents = voting ? "auto" : "none";
 
     // Keep cards overlapped until stars disperse
@@ -503,8 +570,14 @@ export default function ScrollStarStory() {
     const starCount = isSmall ? config.STAR_COUNT_MOBILE : config.STAR_COUNT_DESKTOP;
 
     measure();
-    initStars(starCount);
+    initStars(starCount, isSmall);
     measure(); // rebuild targets with correct starCount
+    startTimeRef.current = performance.now();
+
+    const onVote = () => {
+      hasVotedThisSessionRef.current = true;
+    };
+    window.addEventListener("moggily:vote", onVote);
 
     // ResizeObserver for stage (more robust than window resize alone)
     const ro = new ResizeObserver(() => {
@@ -515,7 +588,7 @@ export default function ScrollStarStory() {
     // Main RAF loop: compute scroll progress -> apply story -> draw
     const loop = (t) => {
       const p = computeProgress();
-      applyStory(p);
+      applyStory(p, t);
       drawFrame(t);
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -551,6 +624,7 @@ export default function ScrollStarStory() {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", measure);
+      window.removeEventListener("moggily:vote", onVote);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -558,13 +632,58 @@ export default function ScrollStarStory() {
   // Inline “grain” svg noise background (breaks gradient banding/lines)
   const noiseDataUrl =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E";
+  const introTitle = "Gamify Your Goals";
+  const introLetters = useMemo(() => Array.from(introTitle), [introTitle]);
+  const introLetterDelay = 0.05;
+  const introLineDelay = introLetters.length * introLetterDelay + 0.15;
+  const introAnimCss = `
+    @keyframes introLetterPop {
+      0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+      60% { opacity: 1; transform: translateY(-4px) scale(1.02); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes introLineExpand {
+      0% { transform: scaleX(0); opacity: 0; }
+      100% { transform: scaleX(1); opacity: 1; }
+    }
+    @keyframes introFadeUp {
+      0% { opacity: 0; transform: translateY(14px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes introNavDrop {
+      0% { opacity: 0; transform: translateY(-120px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .intro-title-letter {
+      opacity: 0;
+      display: inline-block;
+      animation: introLetterPop 0.48s cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
+    }
+    .intro-line {
+      transform-origin: center;
+      transform: scaleX(0);
+      opacity: 0;
+      animation: introLineExpand 0.55s ease forwards;
+    }
+    .intro-fade-up {
+      opacity: 0;
+      transform: translateY(14px);
+      animation: introFadeUp 0.55s ease forwards;
+    }
+    .intro-nav-drop {
+      opacity: 0;
+      transform: translateY(-120px);
+      animation: introNavDrop 0.6s ease forwards;
+    }
+  `;
 
   return (
     <>
+      <style>{introAnimCss}</style>
       <div
         ref={wrapRef}
         style={{
-          height: "5000vh",
+          height: "2000vh",
           position: "relative",
           background: "#000",
         }}
@@ -584,6 +703,39 @@ export default function ScrollStarStory() {
               "linear-gradient(180deg, #05060a, #0a0f1d)",
           }}
         >
+          {/* Glow bloom */}
+          <div
+            ref={glowRef}
+            style={{
+              position: "absolute",
+              inset: "-20%",
+              zIndex: 0,
+              opacity: 0,
+              transform: "translateY(40px) scale(0.9)",
+              filter: "blur(40px)",
+              background:
+                "radial-gradient(900px 520px at 50% 18%, rgba(255, 65, 195, 0.85), rgba(0,0,0,0) 70%)," +
+                "radial-gradient(700px 420px at 18% 22%, rgba(75, 84, 255, 0.85), rgba(0,0,0,0) 70%)",
+              pointerEvents: "none",
+            }}
+          />
+          {/* Heart glow */}
+          <div
+            ref={heartGlowRef}
+            style={{
+              position: "absolute",
+              inset: "-20%",
+              zIndex: 0,
+              opacity: 0,
+              transform: "translateY(30px) scale(0.9)",
+              filter: "blur(55px)",
+              background:
+                "radial-gradient(620px 620px at 45% 40%, rgba(226, 37, 103, 0.65), rgba(0,0,0,0) 70%)," +
+                "radial-gradient(400px 400px at 60% 60%, rgba(255, 239, 15, 0.55), rgba(0,0,0,0) 72%)",
+              pointerEvents: "none",
+              mixBlendMode: "screen",
+            }}
+          />
           {/* Clouds background */}
           <div
             style={{
@@ -612,6 +764,42 @@ export default function ScrollStarStory() {
               zIndex: 1,
             }}
           />
+
+        {/* Vote cursor overlay (independent from cards opacity) */}
+        <div
+          ref={voteCursorRef}
+          className="voteCursorOverlay"
+          aria-hidden="true"
+          style={{ zIndex: 12, opacity: 1 }}
+        >
+          <div className="voteCursorStar">★</div>
+          <div className="voteCursor">
+            <i className="fa-solid fa-arrow-pointer"></i>
+            <div className="voteCursorText">Vote</div>
+          </div>
+        </div>
+
+        {/* Couple image (bottom of the intro screen) */}
+        <img
+          ref={coupleRef}
+          src={coupleImage}
+          alt="Couple"
+          style={{
+            position: "absolute",
+            left: 0,
+            bottom: 0,
+            width: "min(640px, 60vw)",
+            height: "auto",
+            zIndex: 4,
+            opacity: 1,
+            transform: "translate(0, 0)",
+            pointerEvents: "none",
+            maskImage:
+              "linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 28%, rgba(0,0,0,1) 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 28%, rgba(0,0,0,1) 100%)",
+          }}
+        />
 
         {/* Grain overlay (fixes banding “lines”) */}
         <div
@@ -646,25 +834,40 @@ export default function ScrollStarStory() {
         >
           <div style={{ maxWidth: 720, padding: "0 20px", transform: "translateY(-60px)" }}>
             <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, letterSpacing: "-0.01em" }}>
-              Gam
-              <span style={{ position: "relative", display: "inline-block" }}>
-                i
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "0.17em",
-                    transform: "translateX(-42%)",
-                    width: "0.18em",
-                    height: "0.18em",
-                    borderRadius: "50%",
-                    background: "#fff",
-                    boxShadow:
-                      "0 0 10px rgba(255,255,255,0.9), 0 0 22px rgba(160,200,255,0.7)",
-                  }}
-                />
-              </span>
-              fy Your Goals
+              {introLetters.map((letter, idx) => {
+                if (letter === " ") {
+                  return <span key={`space-${idx}`} style={{ display: "inline-block", width: "0.4em" }} />;
+                }
+
+                const isFirstI = letter === "i" && !introLetters.slice(0, idx).includes("i");
+                return (
+                  <span
+                    key={`${letter}-${idx}`}
+                    className="intro-title-letter"
+                    style={{ animationDelay: `${idx * introLetterDelay}s` }}
+                  >
+                    <span style={{ position: "relative", display: "inline-block" }}>
+                      {letter}
+                      {isFirstI ? (
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: "50%",
+                            top: "0.17em",
+                            transform: "translateX(-42%)",
+                            width: "0.18em",
+                            height: "0.18em",
+                            borderRadius: "50%",
+                            background: "#fff",
+                            boxShadow:
+                              "0 0 10px rgba(255,255,255,0.9), 0 0 22px rgba(160,200,255,0.7)",
+                          }}
+                        />
+                      ) : null}
+                    </span>
+                  </span>
+                );
+              })}
             </div>
             <div
               style={{
@@ -676,9 +879,18 @@ export default function ScrollStarStory() {
                   boxShadow:
                     "0 0 10px rgba(255,255,255,0.9), 0 0 28px rgba(255,255,255,0.8)",
                 borderRadius: 999,
+                animationDelay: `${introLineDelay}s`,
               }}
+              className="intro-line"
             />
-            <div style={{ fontSize: "clamp(14px, 1.6vw, 18px)", color: "rgba(255,255,255,0.8)" }}>
+            <div
+              className="intro-fade-up"
+              style={{
+                fontSize: "clamp(14px, 1.6vw, 18px)",
+                color: "rgba(255,255,255,0.8)",
+                animationDelay: `${introLineDelay + 0.15}s`,
+              }}
+            >
               Moggily is the world’s first meritocratic dating app
             </div>
             <button
@@ -686,6 +898,7 @@ export default function ScrollStarStory() {
               onClick={() => {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
               }}
+              className="intro-fade-up"
               style={{
                 marginTop: 60,
                 padding: "16px 20px",
@@ -695,6 +908,7 @@ export default function ScrollStarStory() {
                 color: "#fff",
                 fontWeight: 600,
                 cursor: "pointer",
+                animationDelay: `${introLineDelay + 0.3}s`,
               }}
             >
               Join the Journey
@@ -707,15 +921,17 @@ export default function ScrollStarStory() {
           ref={copyRef}
           style={{
             position: "absolute",
-            left: "clamp(20px, 6vw, 72px)",
-            top: "clamp(20px, 8vh, 90px)",
+            left: "clamp(12px, 2vw, 52px)",
+            top: "clamp(0px, 2vh, 60px)",
             maxWidth: 620,
             zIndex: 6,
             pointerEvents: "none",
             color: "rgba(255,255,255,.92)",
             fontFamily:
               "\"Roboto\", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif",
+            animationDelay: `${introLineDelay + 0.55}s`,
           }}
+          className="intro-nav-drop"
         >
           <div style={{ display: "flex", alignItems: "center", gap: 100 }}>
             <div style={{ fontSize: 22, color: "#fff" }}>Moggily</div>

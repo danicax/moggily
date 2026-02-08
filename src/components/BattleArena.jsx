@@ -9,7 +9,7 @@ const BATTLES = {
   4: ["ayan", "kevin", "matt"],
 };
 
-const NEXT_BATTLE_DELAY = 2000;
+const NEXT_BATTLE_DELAY = 1000;
 const imageUrl = (fileName) => `${import.meta.env.BASE_URL}images/${fileName}`;
 
 function preloadImage(url) {
@@ -155,6 +155,7 @@ export default function BattleArena({ isVisible, leftRef, rightRef }) {
           localStorage.setItem("moggily_has_voted", "true");
         } catch (_) {}
       }
+      window.dispatchEvent(new CustomEvent("moggily:vote"));
 
       if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
       nextTimeoutRef.current = setTimeout(() => {
@@ -169,6 +170,7 @@ export default function BattleArena({ isVisible, leftRef, rightRef }) {
 
   const leftArrow = selectedSide ? (selectedSide === "left" ? "up" : "down") : "up";
   const rightArrow = selectedSide ? (selectedSide === "right" ? "up" : "down") : "up";
+  const showVoteCursor = isVisible && !selectedSide;
 
   return (
     <section
